@@ -4,7 +4,7 @@ const abi = require('../abi/priceFeed.json');
 const tokens = require('./tokenList.json')
 const axios = require('axios');
 
-const { INFURA_URL, PRIVATE_KEY, CONTRACT_ADDRESS, SUBGRAPH_API_URLS } = process.env;
+const { INFURA_URL, PRIVATE_KEY, CONTRACT_ADDRESS, SUBGRAPH_API_URLS, SUBGRAPH_INCENTIVE_API_URLS } = process.env;
 
 const provider = new ethers.JsonRpcProvider(INFURA_URL);
 const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
@@ -23,6 +23,54 @@ const priceCandleQuery = `
       period
     }
   }
+`;
+
+const tradeIncentive = `
+    query GetTradeIncentive($first: Int) {
+        tradingIncentivesStats(first: $first) {
+            id
+            timestamp
+            period
+            positionFeesUsd
+            positionFeesInArb
+            eligibleFeesInArb
+            eligibleFeesUsd
+            rebatesCapInArb
+        }
+    }
+`;
+
+const liquidityProviderIncentivesStat = `
+    query GetLiquidityProviderIncentivesStat($first: Int){
+        liquidityProviderIncentivesStats(first: $first) {
+            id
+            period
+            timestamp
+            account
+            glvOrMarketAddress
+            type
+            updatedTimestamp
+            lastTokensBalance
+            cumulativeTimeByTokensBalance
+            weightedAverageTokensBalance
+        }
+    }
+`;
+
+const marketIncentivesStat = `
+    query getMarketIncentivesStat($first: Int) {
+        incentivesStats(first: $first) {
+            id
+            period
+            timestamp
+            glvOrMarketAddress
+            type
+            updatedTimestamp
+            lastTokensSupply
+            cumulativeTimeByTokensSupply
+            weightedAverageTokensSupply
+        }
+    }
 `;
 
 async function fetchGraphQL(endpoint, query, variables = {}) {
@@ -77,10 +125,10 @@ const get24hData = async (limit) => {
             let tokenData = await contract.tokenPriceData(data.data.priceCandles[i].token);
             candlesData.push({
                 "tokenSymbol": tokenData[0],
-                "high": data.data.priceCandles[i].high,
-                "low": data.data.priceCandles[i].low,
-                "open": data.data.priceCandles[i].open,
-                "close": data.data.priceCandles[i].close
+                "high": (parseInt(data.data.priceCandles[i].high)/10**30),
+                "low": (parseInt(data.data.priceCandles[i].low)/10**30),
+                "open": (parseInt(data.data.priceCandles[i].open)/10**30),
+                "close": (parseInt(data.data.priceCandles[i].close)/10**30)
             })
         }
         console.log(candlesData)
@@ -100,10 +148,10 @@ const getCandles = async (limit, period) => {
                 'period': period,
                 "candles": [[
                     data.data.priceCandles[i].timestamp,
-                    data.data.priceCandles[i].open,
-                    data.data.priceCandles[i].high,
-                    data.data.priceCandles[i].low,
-                    data.data.priceCandles[i].close
+                    (parseInt(data.data.priceCandles[i].open)/10**30),
+                    (parseInt(data.data.priceCandles[i].high)/10**30),
+                    (parseInt(data.data.priceCandles[i].low)/10**30),
+                    (parseInt(data.data.priceCandles[i].close)/10**30)
                 ]]
             })
         }
@@ -113,9 +161,36 @@ const getCandles = async (limit, period) => {
     }
 };
 
-const getIncentives = async () => {
+const getIncentives = async (limit) => {
     try {
+        let incentiveData = [];
+        const endpoint = SUBGRAPH_INCENTIVE_API_URLS;
+        const tradeData = await fetchGraphQL(endpoint, tradeIncentive, { first: parseInt(limit) })
+        const lpIncentiveData = await fetchGraphQL(endpoint, liquidityProviderIncentivesStat, { first: parseInt(limit) })
+        const marketIncentiveData = await fetchGraphQL(endpoint, marketIncentivesStat, { first: parseInt(limit) })
+        
+        console.log(tradeData);
+        console.log(lpIncentiveData);
+        console.log(marketIncentiveData);
 
+        incentiveData.push({
+            'lp': {
+                isActive: "",
+                totalRewards: "",
+                totalShare: "",
+                token: "",
+                period: "",
+                excludeHolders: "",
+                rewardsPerMarket: ""
+            },
+            "migration": {
+                isActive: ""
+            },
+            "trading": {
+                isActive: ""
+            }
+        })
+    return incentiveData;
     } catch (error) {
         throw new Error(`Error fetching token details: ${error.message}`);
     }

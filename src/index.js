@@ -51,8 +51,8 @@ app.get('/prices/candles', async (req, res) => {
 
 app.get('/prices/incentives', async (req, res) => {
     try {
-        const details = await getIncentives();
-        res.json(details.price);
+        const details = await getIncentives(req.query.limit);
+        res.json(details);
     } catch (error) {
         logger.error(`Error fetching token details: ${error.message}`);
         res.status(500).json({ error: error.message });
